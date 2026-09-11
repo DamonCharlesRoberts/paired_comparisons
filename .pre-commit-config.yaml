@@ -1,6 +1,8 @@
 repos:
   - repo: local
     hooks:
+
+      # Linting
       - id: ruff-check
         name: Ruff Linter (Local)
         entry: ruff check
@@ -8,6 +10,7 @@ repos:
         types: [python]
         require_serial: true
 
+      # Formatting
       - id: ruff-format
         name: Ruff Formatter (Local)
         entry: ruff format
@@ -15,6 +18,7 @@ repos:
         types: [python]
         require_serial: true
 
+      # Unit Tests
       - id: pytest
         name: pytest
         entry: .venv/bin/pytest
@@ -22,6 +26,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Type Checking
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.80
+    hooks:
+      - id: ty
+
+  # Sync requirements.txt with the uv.lock file
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.12.13
     hooks:
