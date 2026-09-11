@@ -1,0 +1,29 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff Linter (Local)
+        entry: ruff check
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: ruff-format
+        name: Ruff Formatter (Local)
+        entry: ruff format
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: pytest
+        name: pytest
+        entry: .venv/bin/pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.12.13
+    hooks:
+      - id: uv-export
+        args: ["--format", "requirements.txt", "-o", "requirements.txt"]
