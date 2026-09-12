@@ -106,6 +106,15 @@ $$
 P(i \text{ beats } j) = \text{logit}^{-1}(\gamma + \alpha_i - \alpha_j)
 $$
 
+using the Bayesian notation, the model is:
+
+$$
+\begin{aligned}
+    y_{i,j} \sim \text{Bernoulli}(\theta) \\
+    \theta = logit^{-1}(\gamma + \lambda_i - \lambda_j)
+\end{aligned}
+$$
+
 The intution is clear arithmatically.
 The $\gamma$ term provides an additional boost to $P(i \text{ beats } j)$
 based on the size of $\gamma$ and it is distinct from $\alpha_i$.
@@ -167,4 +176,50 @@ with pm.Model() as bt:
 
 # Paired Comparison with competitor-specific covariates
 
+If there are covariates that may be of substantive interest or to aid with causal identification
+for competitor $i$, then the Bradley-Terry parameterization is expanded.
+
+$$
+\begin{aligned}
+    y_{i, j} \sim \text{Bernoulli}(\theta) \\
+    \theta = logit^{-1}(\lambda_{i,s} - \lambda_{j,s}) \\
+    \lambda_{i,s} = \beta X + \log(\alpha_i) \\
+    \lambda_{j,s} = log(\alpha_j) \\
+\end{aligned}
+$$
+
+where $\beta$ is a vector indicating the direction and magnitude of the effect of a given
+covariate and $X$ is a design matrix containing columns of the covariates and the rows
+corresponding to the recorded data of the covariate.
+
+If there are covariates that are not competitor-specific but may be attributable
+to the match-up, then the $\beta X$ would not be a component of $\lambda$, but instead
+it would be added to $\theta$ in the same-way that $\gamma$ was included to account
+for the "home-field" advantage.
+
 # Paired Comparison with consideration of magnitude of win
+
+If a competitor ties with their opponent, the variants of the PCM above cannot handle such cases.
+Additionally, if there are measures of how much greater the win of $i$ over $j$ or $j$ over $i$
+is for a given match-up, accounting for those situations can aid in more precision on the estimate
+of $\alpha$. To account for such situations, the PCM variants above can be adjusted by changing
+the $\text{Bernoulli}$ kernel with an $\text{OrderedLogistic}$ kernel. For example,
+
+$$
+\begin{aligned}
+    y \sim \text{OrderedLogistic}(\eta, c) \\
+    \eta = \lambda_i - \lambda_j \\
+    \lambda_i, \lambda_j \sim \mathcal{HN}(.,.) \\
+    c \sim \text{CumSum}(\mathcal{HN}(.,.) \\
+\end{aligned}
+$$
+
+where $c$ is an ordered parameter that captures the cutpoints between outcome categories.
+
+Alternatively, if one's outcomes are instead
+
+$$
+y \in \{i \text{ beats } j, i \text{ ties } j, j \text{ beats } i\}
+$$,
+
+then the \text{MultiNomialLogistic} kernel may be used instead of the \text{OrderedLogistic}.

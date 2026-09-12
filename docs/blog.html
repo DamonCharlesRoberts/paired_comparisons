@@ -250,6 +250,13 @@ P(i \text{ beats } j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
 <p><span class="math display">\[
 P(i \text{ beats } j) = \text{logit}^{-1}(\gamma + \alpha_i - \alpha_j)
 \]</span></p>
+<p>using the Bayesian notation, the model is:</p>
+<p><span class="math display">\[
+\begin{aligned}
+    y_{i,j} \sim \text{Bernoulli}(\theta) \\
+    \theta = logit^{-1}(\gamma + \lambda_i - \lambda_j)
+\end{aligned}
+\]</span></p>
 <p>The intution is clear arithmatically. The <span class="math inline">\(\gamma\)</span> term provides an additional boost to <span class="math inline">\(P(i \text{ beats } j)\)</span> based on the size of <span class="math inline">\(\gamma\)</span> and it is distinct from <span class="math inline">\(\alpha_i\)</span>. If <span class="math inline">\(j\)</span> has the advantage, then <span class="math inline">\(\gamma\)</span> would be subtracted rather than added. It is important to note that this <span class="math inline">\(\gamma\)</span> is not specific to each competitor, but it is the average home-field advantage across all competitors.</p>
 <p>Taking the same data from above, but now Competitor 1 refers to the competitor with this advantage, the code for the standard Bradley-Terry is updated to:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
@@ -329,9 +336,35 @@ P(i \text{ beats } j) = \text{logit}^{-1}(\gamma + \alpha_i - \alpha_j)
 </section>
 <section id="paired-comparison-with-competitor-specific-covariates" class="level1">
 <h1>Paired Comparison with competitor-specific covariates</h1>
+<p>If there are covariates that may be of substantive interest or to aid with causal identification for competitor <span class="math inline">\(i\)</span>, then the Bradley-Terry parameterization is expanded.</p>
+<p><span class="math display">\[
+\begin{aligned}
+    y_{i, j} \sim \text{Bernoulli}(\theta) \\
+    \theta = logit^{-1}(\lambda_{i,s} - \lambda_{j,s}) \\
+    \lambda_{i,s} = \beta X + \log(\alpha_i) \\
+    \lambda_{j,s} = log(\alpha_j) \\
+\end{aligned}
+\]</span></p>
+<p>where <span class="math inline">\(\beta\)</span> is a vector indicating the direction and magnitude of the effect of a given covariate and <span class="math inline">\(X\)</span> is a design matrix containing columns of the covariates and the rows corresponding to the recorded data of the covariate.</p>
+<p>If there are covariates that are not competitor-specific but may be attributable to the match-up, then the <span class="math inline">\(\beta X\)</span> would not be a component of <span class="math inline">\(\lambda\)</span>, but instead it would be added to <span class="math inline">\(\theta\)</span> in the same-way that <span class="math inline">\(\gamma\)</span> was included to account for the “home-field” advantage.</p>
 </section>
 <section id="paired-comparison-with-consideration-of-magnitude-of-win" class="level1">
 <h1>Paired Comparison with consideration of magnitude of win</h1>
+<p>If a competitor ties with their opponent, the variants of the PCM above cannot handle such cases. Additionally, if there are measures of how much greater the win of <span class="math inline">\(i\)</span> over <span class="math inline">\(j\)</span> or <span class="math inline">\(j\)</span> over <span class="math inline">\(i\)</span> is for a given match-up, accounting for those situations can aid in more precision on the estimate of <span class="math inline">\(\alpha\)</span>. To account for such situations, the PCM variants above can be adjusted by changing the <span class="math inline">\(\text{Bernoulli}\)</span> kernel with an <span class="math inline">\(\text{OrderedLogistic}\)</span> kernel. For example,</p>
+<p><span class="math display">\[
+\begin{aligned}
+    y \sim \text{OrderedLogistic}(\eta, c) \\
+    \eta = \lambda_i - \lambda_j \\
+    \lambda_i, \lambda_j \sim \mathcal{HN}(.,.) \\
+    c \sim \text{CumSum}(\mathcal{HN}(.,.) \\
+\end{aligned}
+\]</span></p>
+<p>where <span class="math inline">\(c\)</span> is an ordered parameter that captures the cutpoints between outcome categories.</p>
+<p>Alternatively, if one’s outcomes are instead</p>
+<p><span class="math display">\[
+y \in \{i \text{ beats } j, i \text{ ties } j, j \text{ beats } i\}
+\]</span>,</p>
+<p>then the kernel may be used instead of the .</p>
 </section>
 
 </main>
