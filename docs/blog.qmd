@@ -1,0 +1,104 @@
+---
+title: "Paired Comparisons in `PyMC`, `Turing.jl`, and `STAN`"
+date: today
+format: html
+engine: markdown
+execute:
+    eval: false
+---
+
+# Bradley-Terry
+
+$$
+P(i \text{beats} j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
+$$
+
+where $\alpha_i$ refers to the latent skill of competitor $i$ and $\alpha_j$ refers to the latent skill of competitor $j$.
+$\alpha$ is a vector of size $K$. The BTM is reather intuitive. The higher the skill for competitor $i$, the higher the probability
+that $i$ beats $j$ in a head-to-head competition. This is reparameterized as:
+
+$$
+\begin{aligned}
+    P(i \text{beats} j) &= \frac{\alpha_i}{\alpha_i + \alpha_j} \\
+                               &= \frac{e^{\lambda_i}}{e^{\lambda_i} + e^{\lambda_j}} \\
+                               &= \frac{e^{(\lambda_i - \lambda_j)}}{1 + e^{(\lambda_i - \lambda_j)}} \\
+                               &= \frac{1}{1 + e^{-(\lambda_i - \lambda_j)}}
+                               &= \text{logit}^{-1}(\lambda_i - \lambda_j)
+\end{aligned}
+$$
+
+where
+
+$$
+\lambda_K = log(\alpha_K), \quad k = 1, \dots, K
+$$
+
+For identification of the model we need to apply a sum-to-zero constraint:
+
+$$
+\sum_{k=1}^K \lambda_k = 0
+$$
+
+If we consider the realization of each competition between $i$ and $j$, $y_{i,j}$, to be a random variable, then a common parameterization of the Bradley-Terry model is:
+
+$$
+\begin{aligned}
+    y_{i,j} \sim \text{Bernoulli}(\theta) \\
+    \theta = \text{logit}^{-1}(\lambda_i - \lambda_j)
+\end{aligned}
+$$
+
+We can fit such a model with `PyMC`, `Turing.jl`, or `STAN`.
+
+::: {.panel-tabset}
+
+## Structure of the Data
+
+| row | y | Competitor 1 | Competitor 2 |
+|:---:|:-:|:------------:|:------------:|
+| 1   | 0 | A            | B            |
+| 2   | 1 | A            | B            |
+| 3   | 0 | B            | A            |
+| 4   | 1 | B            | A            |
+
+$y = 0$ if competitor 1 loses and $y = 1$ if competitor 1 wins.
+
+Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).
+
+## `PyMC`
+
+```{python}
+import pymc as pm
+
+# Assuming that df is a pandas DataFrame.
+competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
+competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
+
+with pm.Model() as bt:
+    # Define the data.
+    _y_obs = pm.Data("y", df["y"], dims="row")
+    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
+    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
+
+    # Instantiate parameters and define priors.
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent skill of competitors
+
+    # Log of skill with sum-to-zero constraint
+    _lambda_unconstrained = pm.math.log(_alpha)
+    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
+
+    # Define the data-generating process.
+    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2]))
+    _y = pm.Bernoulli("y", _theta, observed = _y_obs)
+
+    # Fit the model.
+    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)
+```
+:::
+
+# Paired Comparison with order Effect
+
+
+# Paired Comparison with competitor-specific covariates
+
+# Paired Comparison with consideration of magnitude of win
