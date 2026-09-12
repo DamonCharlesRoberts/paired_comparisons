@@ -10,7 +10,7 @@ execute:
 # Bradley-Terry
 
 $$
-P(i \text{beats} j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
+P(i \text{ beats } j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
 $$
 
 where $\alpha_i$ refers to the latent skill of competitor $i$ and $\alpha_j$ refers to the latent skill of competitor $j$.
@@ -19,7 +19,7 @@ that $i$ beats $j$ in a head-to-head competition. This is reparameterized as:
 
 $$
 \begin{aligned}
-    P(i \text{beats} j) &= \frac{\alpha_i}{\alpha_i + \alpha_j} \\
+    P(i \text{ beats } j) &= \frac{\alpha_i}{\alpha_i + \alpha_j} \\
                                &= \frac{e^{\lambda_i}}{e^{\lambda_i} + e^{\lambda_j}} \\
                                &= \frac{e^{(\lambda_i - \lambda_j)}}{1 + e^{(\lambda_i - \lambda_j)}} \\
                                &= \frac{1}{1 + e^{-(\lambda_i - \lambda_j)}}
@@ -67,7 +67,7 @@ Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4
 
 ## `PyMC`
 
-```{python}
+```{.python}
 import pymc as pm
 
 # Assuming that df is a pandas DataFrame.
@@ -88,7 +88,7 @@ with pm.Model() as bt:
     _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
 
     # Define the data-generating process.
-    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2]))
+    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2])
     _y = pm.Bernoulli("y", _theta, observed = _y_obs)
 
     # Fit the model.
@@ -96,8 +96,74 @@ with pm.Model() as bt:
 ```
 :::
 
-# Paired Comparison with order Effect
+# Paired Comparison with order effect
 
+The addition of an intercept term acts as a baseline advantage for the competitor
+that is not explained by skill. This works for situations where there is a
+"home-field" advantage effect or where the order of presentation matters.
+
+$$
+P(i \text{ beats } j) = \text{logit}^{-1}(\gamma + \alpha_i - \alpha_j)
+$$
+
+The intution is clear arithmatically.
+The $\gamma$ term provides an additional boost to $P(i \text{ beats } j)$
+based on the size of $\gamma$ and it is distinct from $\alpha_i$.
+If $j$ has the advantage, then $\gamma$ would be subtracted rather than added.
+It is important to note that this $\gamma$ is not specific
+to each competitor, but it is the average home-field advantage across all competitors.
+
+Taking the same data from above, but now Competitor 1 refers to the competitor
+with this advantage, the code for the standard Bradley-Terry is updated to:
+
+::: {.panel-tabset}
+
+## Structure of the Data
+
+| row | y | Competitor 1 | Competitor 2 |
+|:---:|:-:|:------------:|:------------:|
+| 1   | 0 | A            | B            |
+| 2   | 1 | A            | B            |
+| 3   | 0 | B            | A            |
+| 4   | 1 | B            | A            |
+
+Competitor 1 is the competitor with the home-field advantage.
+
+$y = 0$ if competitor 1 loses and $y = 1$ if competitor 1 wins.
+
+Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).
+
+## `PyMC`
+
+```{.python}
+import pymc as pm
+
+# Assuming that df is a pandas DataFrame.
+competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
+competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
+
+with pm.Model() as bt:
+    # Define the data.
+    _y_obs = pm.Data("y", df["y"], dims="row")
+    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
+    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
+
+    # Instantiate parameters and define priors.
+    _gamma = pm.Normal("gamma", mu=0, sigma=1) # home-field advantage.
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent skill of competitors
+
+    # Log of skill with sum-to-zero constraint
+    _lambda_unconstrained = pm.math.log(_alpha)
+    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
+
+    # Define the data-generating process.
+    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2] + _gamma)
+    _y = pm.Bernoulli("y", _theta, observed = _y_obs)
+
+    # Fit the model.
+    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)
+```
+:::
 
 # Paired Comparison with competitor-specific covariates
 

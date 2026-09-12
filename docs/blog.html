@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="dcterms.date" content="2026-09-11">
+<meta name="dcterms.date" content="2026-09-12">
 
 <title>Paired Comparisons in PyMC, Turing.jl, and STAN</title>
 <style>
@@ -26,6 +26,41 @@ ul.task-list li input[type="checkbox"] {
   width: 0.8em;
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 </style>
 
@@ -93,7 +128,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">September 11, 2026</p>
+      <p class="date">September 12, 2026</p>
     </div>
   </div>
   
@@ -108,12 +143,12 @@ window.Quarto = {
 <section id="bradley-terry" class="level1">
 <h1>Bradley-Terry</h1>
 <p><span class="math display">\[
-P(i \text{beats} j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
+P(i \text{ beats } j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
 \]</span></p>
 <p>where <span class="math inline">\(\alpha_i\)</span> refers to the latent skill of competitor <span class="math inline">\(i\)</span> and <span class="math inline">\(\alpha_j\)</span> refers to the latent skill of competitor <span class="math inline">\(j\)</span>. <span class="math inline">\(\alpha\)</span> is a vector of size <span class="math inline">\(K\)</span>. The BTM is reather intuitive. The higher the skill for competitor <span class="math inline">\(i\)</span>, the higher the probability that <span class="math inline">\(i\)</span> beats <span class="math inline">\(j\)</span> in a head-to-head competition. This is reparameterized as:</p>
 <p><span class="math display">\[
 \begin{aligned}
-    P(i \text{beats} j) &amp;= \frac{\alpha_i}{\alpha_i + \alpha_j} \\
+    P(i \text{ beats } j) &amp;= \frac{\alpha_i}{\alpha_i + \alpha_j} \\
                                &amp;= \frac{e^{\lambda_i}}{e^{\lambda_i} + e^{\lambda_j}} \\
                                &amp;= \frac{e^{(\lambda_i - \lambda_j)}}{1 + e^{(\lambda_i - \lambda_j)}} \\
                                &amp;= \frac{1}{1 + e^{-(\lambda_i - \lambda_j)}}
@@ -180,37 +215,117 @@ P(i \text{beats} j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
 <p>Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).</p>
 </div>
 <div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
-<pre class="{python}"><code>import pymc as pm
-
-# Assuming that df is a pandas DataFrame.
-competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
-competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
-
-with pm.Model() as bt:
-    # Define the data.
-    _y_obs = pm.Data("y", df["y"], dims="row")
-    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
-    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
-
-    # Instantiate parameters and define priors.
-    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent skill of competitors
-
-    # Log of skill with sum-to-zero constraint
-    _lambda_unconstrained = pm.math.log(_alpha)
-    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
-
-    # Define the data-generating process.
-    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2]))
-    _y = pm.Bernoulli("y", _theta, observed = _y_obs)
-
-    # Fit the model.
-    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)</code></pre>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pymc <span class="im">as</span> pm</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Assuming that df is a pandas DataFrame.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>competitor_1 <span class="op">=</span> df[<span class="st">"competitor_1"</span>].<span class="bu">map</span>({<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">1</span>})</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>competitor_2 <span class="op">=</span> df[<span class="st">"competitor_2"</span>].<span class="bu">map</span>({<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">1</span>})</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> pm.Model() <span class="im">as</span> bt:</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the data.</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    _y_obs <span class="op">=</span> pm.Data(<span class="st">"y"</span>, df[<span class="st">"y"</span>], dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    _competitor_1 <span class="op">=</span> pm.Data(<span class="st">"competitor_1"</span>, competitor_1, dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    _competitor_2 <span class="op">=</span> pm.Data(<span class="st">"competitor_2"</span>, competitor_2, dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Instantiate parameters and define priors.</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    _alpha <span class="op">=</span> pm.HalfNormal(<span class="st">"alpha"</span>, sigma<span class="op">=</span><span class="dv">1</span>, shape<span class="op">=</span><span class="dv">2</span>) <span class="co"># latent skill of competitors</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Log of skill with sum-to-zero constraint</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    _lambda_unconstrained <span class="op">=</span> pm.math.log(_alpha)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    _lambda <span class="op">=</span> _lambda_unconstrained <span class="op">-</span> pm.math.mean(_lambda_unconstrained)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the data-generating process.</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    _theta <span class="op">=</span> pm.math.invlogit(_lambda[_competitor_1] <span class="op">-</span> _lambda[_competitor_2])</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    _y <span class="op">=</span> pm.Bernoulli(<span class="st">"y"</span>, _theta, observed <span class="op">=</span> _y_obs)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fit the model.</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    bt_idata <span class="op">=</span> pm.sample(draws<span class="op">=</span><span class="dv">2_000</span>, warmup<span class="op">=</span><span class="dv">2_000</span>, seed<span class="op">=</span><span class="dv">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
 </section>
 <section id="paired-comparison-with-order-effect" class="level1">
-<h1>Paired Comparison with order Effect</h1>
+<h1>Paired Comparison with order effect</h1>
+<p>The addition of an intercept term acts as a baseline advantage for the competitor that is not explained by skill. This works for situations where there is a “home-field” advantage effect or where the order of presentation matters.</p>
+<p><span class="math display">\[
+P(i \text{ beats } j) = \text{logit}^{-1}(\gamma + \alpha_i - \alpha_j)
+\]</span></p>
+<p>The intution is clear arithmatically. The <span class="math inline">\(\gamma\)</span> term provides an additional boost to <span class="math inline">\(P(i \text{ beats } j)\)</span> based on the size of <span class="math inline">\(\gamma\)</span> and it is distinct from <span class="math inline">\(\alpha_i\)</span>. If <span class="math inline">\(j\)</span> has the advantage, then <span class="math inline">\(\gamma\)</span> would be subtracted rather than added. It is important to note that this <span class="math inline">\(\gamma\)</span> is not specific to each competitor, but it is the average home-field advantage across all competitors.</p>
+<p>Taking the same data from above, but now Competitor 1 refers to the competitor with this advantage, the code for the standard Bradley-Terry is updated to:</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true" href="">Structure of the Data</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false" href=""><code>PyMC</code></a></li></ul>
+<div class="tab-content">
+<div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">row</th>
+<th style="text-align: center;">y</th>
+<th style="text-align: center;">Competitor 1</th>
+<th style="text-align: center;">Competitor 2</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">A</td>
+<td style="text-align: center;">B</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">A</td>
+<td style="text-align: center;">B</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">3</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">B</td>
+<td style="text-align: center;">A</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">B</td>
+<td style="text-align: center;">A</td>
+</tr>
+</tbody>
+</table>
+<p>Competitor 1 is the competitor with the home-field advantage.</p>
+<p><span class="math inline">\(y = 0\)</span> if competitor 1 loses and <span class="math inline">\(y = 1\)</span> if competitor 1 wins.</p>
+<p>Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).</p>
+</div>
+<div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pymc <span class="im">as</span> pm</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Assuming that df is a pandas DataFrame.</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>competitor_1 <span class="op">=</span> df[<span class="st">"competitor_1"</span>].<span class="bu">map</span>({<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">1</span>})</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>competitor_2 <span class="op">=</span> df[<span class="st">"competitor_2"</span>].<span class="bu">map</span>({<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">1</span>})</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> pm.Model() <span class="im">as</span> bt:</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the data.</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    _y_obs <span class="op">=</span> pm.Data(<span class="st">"y"</span>, df[<span class="st">"y"</span>], dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    _competitor_1 <span class="op">=</span> pm.Data(<span class="st">"competitor_1"</span>, competitor_1, dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    _competitor_2 <span class="op">=</span> pm.Data(<span class="st">"competitor_2"</span>, competitor_2, dims<span class="op">=</span><span class="st">"row"</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Instantiate parameters and define priors.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    _gamma <span class="op">=</span> pm.Normal(<span class="st">"gamma"</span>, mu<span class="op">=</span><span class="dv">0</span>, sigma<span class="op">=</span><span class="dv">1</span>) <span class="co"># home-field advantage.</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    _alpha <span class="op">=</span> pm.HalfNormal(<span class="st">"alpha"</span>, sigma<span class="op">=</span><span class="dv">1</span>, shape<span class="op">=</span><span class="dv">2</span>) <span class="co"># latent skill of competitors</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Log of skill with sum-to-zero constraint</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    _lambda_unconstrained <span class="op">=</span> pm.math.log(_alpha)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    _lambda <span class="op">=</span> _lambda_unconstrained <span class="op">-</span> pm.math.mean(_lambda_unconstrained)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the data-generating process.</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    _theta <span class="op">=</span> pm.math.invlogit(_lambda[_competitor_1] <span class="op">-</span> _lambda[_competitor_2] <span class="op">+</span> _gamma)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    _y <span class="op">=</span> pm.Bernoulli(<span class="st">"y"</span>, _theta, observed <span class="op">=</span> _y_obs)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fit the model.</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    bt_idata <span class="op">=</span> pm.sample(draws<span class="op">=</span><span class="dv">2_000</span>, warmup<span class="op">=</span><span class="dv">2_000</span>, seed<span class="op">=</span><span class="dv">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
 </section>
 <section id="paired-comparison-with-competitor-specific-covariates" class="level1">
 <h1>Paired Comparison with competitor-specific covariates</h1>
