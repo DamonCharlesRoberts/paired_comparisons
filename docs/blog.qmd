@@ -1,5 +1,5 @@
 ---
-title: "Paired Comparisons in `PyMC`, `Turing.jl`, and `STAN`"
+title: "Paired Comparisons in `PyMC`"
 date: today
 format: html
 engine: markdown
@@ -7,14 +7,42 @@ execute:
     eval: false
 ---
 
+Paired comparison models are very helpful. In a handful of my other blog posts I use them as a way to do "power rankings"
+for [professional baseball teams](https://blog.damoncroberts.io/posts/mlb_pred/docs/blog).
+However, they can be applied to more settings than just sports.
+Other examples include settings where you want to understand which item may be preferred more by
+customers and which political candidates may be more popular in head-to-head matchups.
+
+The key estimand of interest in these models is to measure the "ability" (or the attractiveness, or skill, etc.) of objects
+that are being compared.
+
+They are particularly helpful in settings where you do not see a match-up between all "competitors" (borrowing sports-lingo),
+but rather see match-ups between some of the competitors. There are many scenarios where this might occur either because
+the sports league's schedule is not set up to have all competitors compete against one another before determining the champion,
+because having every permutation of products being compared by customers would be costly, or because not all political candidates
+are systematically put-head-to-head in repeated elections. If we were in settings like that, then the task for determining
+the most capable competitor would be relatively easy.
+
+There are a few different flavors of Paired Comparison models and I will cover some of the ones that I am most familiar with.
+And will provide pseudo-code of how you might implement these with a Bayesian Probabilistic Programming library in Python called `PyMC`.
+
+The first is referred to as the Bradley-Terry model.
+The other paired comparison models I cover here will expand upon the Bradley-Terry model.
+You can use one of these other paired comparison models, combine aspects of them, or use other familiar techniques like hiearchical models.
+Because of its simplicity, the Bradley-Terry model makes it easy as an entry point into these types of models.
+
 # Bradley-Terry
+
+Recall that the key goal of paired comparison models is to estimate the "ability" of objects that are being compared.
+
+With this goal in mind:
 
 $$
 P(i \text{ beats } j) = \frac{\alpha_i}{\alpha_i + \alpha_j}
 $$
 
-where $\alpha_i$ refers to the latent skill of competitor $i$ and $\alpha_j$ refers to the latent skill of competitor $j$.
-$\alpha$ is a vector of size $K$. The BTM is reather intuitive. The higher the skill for competitor $i$, the higher the probability
+where $\alpha_i$ refers to the latent ability of competitor $i$ and $\alpha_j$ refers to the latent ability of competitor $j$.
+$\alpha$ is a vector of size $K$. The Bradley-Terry model is reather intuitive. The higher the ability for competitor $i$, the higher the probability
 that $i$ beats $j$ in a head-to-head competition. This is reparameterized as:
 
 $$
@@ -39,6 +67,17 @@ $$
 \sum_{k=1}^K \lambda_k = 0
 $$
 
+This is done by updating $\lambda$ for each competitor:
+
+$$
+\lambda_k := \lambda_k - \bar{\lambda}
+$$
+
+In words, for each competitor, it's log of the estimated latent ability is updated by subtracting the mean of the log latent abilities from all competitors.
+
+> Note that the other paired comparison models need this sum-to-zero constraint. To keep the post short, I do not belabor this point for the other models.
+> This should be taken into consideration, though, when implementing any of those models.
+
 If we consider the realization of each competition between $i$ and $j$, $y_{i,j}$, to be a random variable, then a common parameterization of the Bradley-Terry model is:
 
 $$
@@ -48,7 +87,7 @@ $$
 \end{aligned}
 $$
 
-We can fit such a model with `PyMC`, `Turing.jl`, or `STAN`.
+We can fit such a model with `PyMC`.
 
 ::: {.panel-tabset}
 
@@ -76,14 +115,14 @@ competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
 
 with pm.Model() as bt:
     # Define the data.
-    _y_obs = pm.Data("y", df["y"], dims="row")
+    _y_obs = pm.Data("y_obs", df["y"], dims="row")
     _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
     _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
 
     # Instantiate parameters and define priors.
-    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent skill of competitors
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent ability of competitors
 
-    # Log of skill with sum-to-zero constraint
+    # Log of ability with sum-to-zero constraint
     _lambda_unconstrained = pm.math.log(_alpha)
     _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
 
@@ -99,7 +138,7 @@ with pm.Model() as bt:
 # Paired Comparison with order effect
 
 The addition of an intercept term acts as a baseline advantage for the competitor
-that is not explained by skill. This works for situations where there is a
+that is not explained by ability. This works for situations where there is a
 "home-field" advantage effect or where the order of presentation matters.
 
 $$
@@ -153,15 +192,15 @@ competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
 
 with pm.Model() as bt:
     # Define the data.
-    _y_obs = pm.Data("y", df["y"], dims="row")
+    _y_obs = pm.Data("y_obs", df["y"], dims="row")
     _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
     _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
 
     # Instantiate parameters and define priors.
     _gamma = pm.Normal("gamma", mu=0, sigma=1) # home-field advantage.
-    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent skill of competitors
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent ability of competitors
 
-    # Log of skill with sum-to-zero constraint
+    # Log of ability with sum-to-zero constraint
     _lambda_unconstrained = pm.math.log(_alpha)
     _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
 
@@ -174,17 +213,35 @@ with pm.Model() as bt:
 ```
 :::
 
-# Paired Comparison with competitor-specific covariates
+# Paired Comparison with covariates
 
 If there are covariates that may be of substantive interest or to aid with causal identification
 for competitor $i$, then the Bradley-Terry parameterization is expanded.
 
+Here are some of the common terms used to describe different types of covariates across applications of paired comparison models.
+
+This is not all encompassing, however, they cover some of the common ones that are specific to the objects that are being compared (competitors).
+
+| Covariate type | Definition | Example |
+|:--------------:|:----------:|:-------:|
+| Object-specific  | Specific to a competitor, regardless of opponent               | Total revenue of team        |
+| Subject-specific | Characteristic of the one making the comparison                | The age of the judge         |
+| Dyadic/pairwise  | Relational variable for that particular pairing of competitors | Travel distance differential |
+
+Expanding the Bradley-Terry parameterization to account for these would be handled slightly differently depending on which
+type of covariate.
+
+> These competitor-specific covariates are distinct from "match"-specific covariates.
+> Match-specific covariates may be included in the model as well but the paired comparison model would be expaned to a multilevel model.
+
+## An object-specific covariate
+
+Under this scenario, the Bradley-Terry parameterization can be expanded to:
+
 $$
 \begin{aligned}
     y_{i, j} \sim \text{Bernoulli}(\theta) \\
-    \theta = logit^{-1}(\lambda_{i,s} - \lambda_{j,s}) \\
-    \lambda_{i,s} = \beta X + \log(\alpha_i) \\
-    \lambda_{j,s} = log(\alpha_j) \\
+    \theta = logit^{-1}(\lambda_{i,s} - \lambda_{j,s} + \beta(X_i - X_j) \\
 \end{aligned}
 $$
 
@@ -192,17 +249,132 @@ where $\beta$ is a vector indicating the direction and magnitude of the effect o
 covariate and $X$ is a design matrix containing columns of the covariates and the rows
 corresponding to the recorded data of the covariate.
 
-If there are covariates that are not competitor-specific but may be attributable
-to the match-up, then the $\beta X$ would not be a component of $\lambda$, but instead
-it would be added to $\theta$ in the same-way that $\gamma$ was included to account
-for the "home-field" advantage.
+::: {.panel-tabset}
+
+## Structure of the Data
+
+| row | y | Competitor 1 | Competitor 2 | Competitor 1 Revenue | Competitor 2 Revenue |
+|:---:|:-:|:------------:|:------------:|:--------------------:|:--------------------:|
+| 1   | 0 | A            | B            | 10,000               | 1,000                |
+| 2   | 1 | A            | B            | 10,000               | 1,000                |
+| 3   | 0 | B            | A            | 1,000                | 10,000               |
+| 4   | 1 | B            | A            | 1,000                | 10,000               |
+
+Competitor 1 is the competitor with the home-field advantage.
+
+$y = 0$ if competitor 1 loses and $y = 1$ if competitor 1 wins.
+
+Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).
+
+## `PyMC`
+
+```{.python}
+import pymc as pm
+
+# Assuming that df is a pandas DataFrame.
+competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
+competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
+
+with pm.Model() as bt:
+    # Define the data.
+    _y_obs = pm.Data("y_obs", df["y"], dims="row")
+    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
+    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
+    _x_obs = pm.Data(
+        "x_obs",
+        (
+            df["competitor_1_revenue"]
+            - df["competitor_2_revenue"]
+        ).to_numpy(),
+        dims="row"
+    )
+
+    # Instantiate parameters and define priors.
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent ability of competitors
+    _beta = pm.Normal("beta", mu=0, sigma=10) # Competitor 1 revenue effect
+
+    # Log of ability with sum-to-zero constraint
+    _lambda_unconstrained = pm.math.log(_alpha)
+    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
+
+    # Define the data-generating process.
+    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2] + _beta * _x_obs)
+    _y = pm.Bernoulli("y", _theta, observed = _y_obs)
+
+    # Fit the model.
+    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)
+```
+:::
+
+## A dyadic or pairing-specific covariate
+
+Under these scenarios, the Bradley-Terry parameterization can be expanded to:
+
+$$
+\begin{aligned}
+    y_{i, j} \sim \text{Bernoulli}(\theta) \\
+    \theta = logit^{-1}(\lambda_{i,s} - \lambda_{j,s}) + \beta X \\
+    \lambda_{i,s} = \log(\alpha_i) \\
+    \lambda_{j,s} = log(\alpha_j) \\
+\end{aligned}
+$$
+
+::: {.panel-tabset}
+
+## Structure of the Data
+
+| row | y | Competitor 1 | Competitor 2 |  Travel distance differential    |
+|:---:|:-:|:------------:|:------------:|:--------------------------------:|
+| 1   | 0 | A            | B            | 750                              |
+| 2   | 1 | A            | B            | 1,000                            |
+| 3   | 0 | B            | A            | 500                              |
+| 4   | 1 | B            | A            | 2,000                            |
+
+Competitor 1 is the competitor with the home-field advantage.
+
+$y = 0$ if competitor 1 loses and $y = 1$ if competitor 1 wins.
+
+Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).
+
+## `PyMC`
+
+```{.python}
+import pymc as pm
+
+# Assuming that df is a pandas DataFrame.
+competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
+competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
+
+with pm.Model() as bt:
+    # Define the data.
+    _y_obs = pm.Data("y_obs", df["y"], dims="row")
+    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
+    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
+    _x_obs = pm.Data("x_obs", df["travel_distance_differential"], dims="row")
+
+    # Instantiate parameters and define priors.
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent ability of competitors
+    _beta = pm.Normal("beta", mu=0, sigma=5) #dyadic effect
+
+    # Log of ability with sum-to-zero constraint
+    _lambda_unconstrained = pm.math.log(_alpha)
+    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
+
+    # Define the data-generating process.
+    _theta = pm.math.invlogit(_lambda[_competitor_1] - _lambda[_competitor_2] + _beta * _x_obs)
+    _y = pm.Bernoulli("y", _theta, observed = _y_obs)
+
+    # Fit the model.
+    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)
+```
+:::
 
 # Paired Comparison with consideration of magnitude of win
 
-If a competitor ties with their opponent, the variants of the PCM above cannot handle such cases.
+If a competitor ties with their opponent, the variants of the paired comparison models above cannot handle such cases.
 Additionally, if there are measures of how much greater the win of $i$ over $j$ or $j$ over $i$
 is for a given match-up, accounting for those situations can aid in more precision on the estimate
-of $\alpha$. To account for such situations, the PCM variants above can be adjusted by changing
+of $\alpha$. To account for such situations, the paired comparison variants above can be adjusted by changing
 the $\text{Bernoulli}$ kernel with an $\text{OrderedLogistic}$ kernel. For example,
 
 $$
@@ -223,3 +395,58 @@ y \in \{i \text{ beats } j, i \text{ ties } j, j \text{ beats } i\}
 $$,
 
 then the \text{MultiNomialLogistic} kernel may be used instead of the \text{OrderedLogistic}.
+
+::: {.panel-tabset}
+
+## Structure of the Data
+
+| row | y | Competitor 1 | Competitor 2 |
+|:---:|:-:|:------------:|:------------:|
+| 1   | 0 | A            | B            |
+| 2   | 2 | A            | B            |
+| 3   | 1 | B            | A            |
+| 4   | 2 | B            | A            |
+
+$y = 0$ if competitor 1 loses, $y = 1$ is a tie and $y=2$ if Competitor 1 wins.
+
+If wanting to model for the magnitude of victory, this can be expanded with more categories.
+
+For example:
+
+$$
+y \in \{0, 1, 2, 3, 4, 5, 6\}
+$$
+
+Competitor A wins twice (rows 2 and 3) and Competitor B wins twice (rows 1 and 4).
+
+## `PyMC`
+
+```{.python}
+import pymc as pm
+
+# Assuming that df is a pandas DataFrame.
+competitor_1 = df["competitor_1"].map({"A": 0, "B": 1})
+competitor_2 = df["competitor_2"].map({"A": 0, "B": 1})
+
+with pm.Model() as bt:
+    # Define the data.
+    _y_obs = pm.Data("y_obs", df["y"], dims="row")
+    _competitor_1 = pm.Data("competitor_1", competitor_1, dims="row")
+    _competitor_2 = pm.Data("competitor_2", competitor_2, dims="row")
+
+    # Instantiate parameters and define priors.
+    _alpha = pm.HalfNormal("alpha", sigma=1, shape=2) # latent ability of competitors
+
+    # Log of ability with sum-to-zero constraint
+    _lambda_unconstrained = pm.math.log(_alpha)
+    _lambda = _lambda_unconstrained - pm.math.mean(_lambda_unconstrained)
+
+    # Define the data-generating process.
+    _eta = _lambda[_competitor_1] - _lambda[_competitor_2]
+    _cutpoints = pm.Normal("cutpoints", mu=[-1,1], sigma=1, shape=2, transform=pm.distributions.transforms.ordered)
+    _y = pm.OrderedLogistic("y", eta=_eta, cutpoints=_cutpoints, observed=_y_obs)
+
+    # Fit the model.
+    bt_idata = pm.sample(draws=2_000, warmup=2_000, seed=42)
+```
+:::
