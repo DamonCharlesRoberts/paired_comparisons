@@ -391,10 +391,10 @@ where $c$ is an ordered parameter that captures the cutpoints between outcome ca
 Alternatively, if one's outcomes are instead
 
 $$
-y \in \{i \text{ beats } j, i \text{ ties } j, j \text{ beats } i\}
-$$,
+y \in \{i \text{ beats } j, i \text{ ties } j, j \text{ beats } i\},
+$$
 
-then the \text{MultiNomialLogistic} kernel may be used instead of the \text{OrderedLogistic}.
+then the $\text{MultiNomialLogistic}$ kernel may be used instead of the $\text{OrderedLogistic}$.
 
 ::: {.panel-tabset}
 
