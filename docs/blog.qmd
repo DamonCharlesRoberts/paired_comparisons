@@ -7,7 +7,7 @@ execute:
     eval: false
 ---
 
-Paired comparison models are very helpful. In a handful of my other blog posts I use them as a way to do "power rankings"
+Paired comparison models are very helpful. In another blog post I use them as a way to do "power rankings"
 for [professional baseball teams](https://blog.damoncroberts.io/posts/mlb_pred/docs/blog).
 However, they can be applied to more settings than just sports.
 Other examples include settings where you want to understand which item may be preferred more by
